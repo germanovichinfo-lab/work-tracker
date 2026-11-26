@@ -1,0 +1,1434 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lada Largus Service — Бортовой журнал и ТО</title>
+    <!-- Подключение Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Подключение иконок Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Шрифт Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            color: #1f2937;
+        }
+        /* Скрытие полосы прокрутки для горизонтального скролла вкладок на мобильных */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        /* Анимация появления */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col bg-slate-100 text-slate-800">
+
+    <!-- Уведомление (Toast) вместо alert() -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Шапка приложения -->
+    <header class="bg-slate-900 text-white shadow-lg sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-inner">
+                        <i class="ph-bold ph-car-profile text-2xl text-white"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-lg leading-tight tracking-tight">Lada Largus <span class="text-blue-400">Service</span></h1>
+                        <p class="text-xs text-slate-400" id="header-car-subtitle">K4M 1.6 16V (105 л.с.)</p>
+                    </div>
+                </div>
+                <!-- Кнопка настройки авто на мобильном -->
+                <button onclick="openCarSettingsModal()" class="sm:hidden p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition">
+                    <i class="ph ph-gear text-xl"></i>
+                </button>
+            </div>
+
+            <!-- Блок пробега и настроек -->
+            <div class="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end bg-slate-800/80 p-2 rounded-xl border border-slate-700/50">
+                <div class="flex items-center gap-2 pl-2">
+                    <i class="ph ph-gauge text-blue-400 text-xl"></i>
+                    <div>
+                        <span class="text-[10px] uppercase tracking-wider text-slate-400 block">Текущий пробег</span>
+                        <div class="flex items-center gap-1">
+                            <span id="display-mileage" class="font-bold text-base text-white">84 500</span>
+                            <span class="text-xs text-slate-400">км</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-1">
+                    <button onclick="openMileageModal()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition shadow flex items-center gap-1">
+                        <i class="ph-bold ph-plus"></i> Обновить
+                    </button>
+                    <button onclick="openCarSettingsModal()" title="Настройки модификации" class="hidden sm:flex p-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300 transition">
+                        <i class="ph ph-gear text-lg"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Навигационные вкладки -->
+        <nav class="bg-slate-800 border-t border-slate-700/60">
+            <div class="max-w-6xl mx-auto px-4 flex overflow-x-auto no-scrollbar gap-2 py-2">
+                <button onclick="switchTab('dashboard')" id="tab-dashboard" class="nav-btn active flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap bg-blue-600 text-white shadow">
+                    <i class="ph ph-check-circle text-lg"></i> Регламент ТО
+                </button>
+                <button onclick="switchTab('calendar')" id="tab-calendar" class="nav-btn flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap text-slate-300 hover:bg-slate-700/50">
+                    <i class="ph ph-calendar-blank text-lg"></i> Календарь
+                </button>
+                <button onclick="switchTab('journal')" id="tab-journal" class="nav-btn flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap text-slate-300 hover:bg-slate-700/50">
+                    <i class="ph ph-notebook text-lg"></i> Журнал и Фото
+                </button>
+                <button onclick="switchTab('quirks')" id="tab-quirks" class="nav-btn flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap text-slate-300 hover:bg-slate-700/50">
+                    <i class="ph ph-wrench text-lg"></i> Особенности Largus
+                </button>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Основной контент -->
+    <main class="flex-1 max-w-6xl w-full mx-auto px-4 py-6">
+
+        <!-- ВКЛАДКА 1: РЕГЛАМЕНТ ТО -->
+        <section id="view-dashboard" class="tab-view animate-fade-in space-y-6">
+            <!-- Сводка состояния -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80 flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                        <i class="ph-fill ph-shield-check text-2xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-500 font-medium">В норме</p>
+                        <p class="text-2xl font-bold text-slate-800" id="stat-ok">0</p>
+                        <p class="text-xs text-slate-400">узлов обслужено</p>
+                    </div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80 flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                        <i class="ph-fill ph-warning text-2xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-500 font-medium">Скоро замена</p>
+                        <p class="text-2xl font-bold text-slate-800" id="stat-soon">0</p>
+                        <p class="text-xs text-slate-400">осталось &lt; 2 000 км</p>
+                    </div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80 flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                        <i class="ph-fill ph-warning-octagon text-2xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-500 font-medium">Требует внимания</p>
+                        <p class="text-2xl font-bold text-slate-800" id="stat-overdue">0</p>
+                        <p class="text-xs text-slate-400">просрочен интервал</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Предупреждение по двигателю (динамическое) -->
+            <div id="engine-alert-box" class="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-start gap-3">
+                <i class="ph-fill ph-info text-blue-600 text-xl shrink-0 mt-0.5"></i>
+                <div class="text-sm text-blue-900" id="engine-alert-text">
+                    <!-- Заполняется через JS в зависимости от выбранного двигателя -->
+                </div>
+            </div>
+
+            <!-- Автоматические рекомендации по текущему пробегу -->
+            <div id="mileage-recommendations-box" class="bg-gradient-to-r from-indigo-50 via-blue-50 to-sky-50 border border-indigo-200/80 rounded-2xl p-5 shadow-sm">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                            <i class="ph-bold ph-sparkle text-lg"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-slate-800 text-base">Советы по пробегу: <span id="rec-mileage-badge" class="text-indigo-600">84 500 км</span></h3>
+                            <p class="text-xs text-slate-500" id="rec-milestone-subtitle">Актуальные проверки для данного этапа эксплуатации Largus</p>
+                        </div>
+                    </div>
+                </div>
+                <div id="mileage-recommendations-list" class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                    <!-- Карточки рекомендаций по пробегу генерируются через JS -->
+                </div>
+            </div>
+
+            <!-- Список регламентных работ -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+                <div class="p-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800">Карта технического обслуживания</h2>
+                        <p class="text-xs text-slate-500">Интервалы адаптированы под реалии эксплуатации Lada Largus</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button id="btn-restore-tasks" onclick="restoreDefaultTasks()" class="hidden px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-xl transition flex items-center gap-1.5" title="Вернуть удаленные пункты регламента">
+                            <i class="ph-bold ph-arrow-counter-clockwise"></i> Восстановить пункты
+                        </button>
+                        <button onclick="openAddRecordModal()" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-xl transition flex items-center gap-2 shadow-sm">
+                            <i class="ph-bold ph-plus"></i> Записать работу
+                        </button>
+                    </div>
+                </div>
+                <div id="maintenance-list" class="divide-y divide-slate-100">
+                    <!-- Карточки ТО генерируются через JS -->
+                </div>
+            </div>
+        </section>
+
+        <!-- ВКЛАДКА 2: КАЛЕНДАРЬ ОБСЛУЖИВАНИЯ -->
+        <section id="view-calendar" class="tab-view hidden animate-fade-in space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Сам календарь -->
+                <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-lg font-bold text-slate-800" id="calendar-month-year">Ноябрь 2026</h2>
+                        <div class="flex items-center gap-2">
+                            <button onclick="changeMonth(-1)" class="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
+                                <i class="ph-bold ph-caret-left"></i>
+                            </button>
+                            <button onclick="resetCalendarToToday()" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
+                                Сегодня
+                            </button>
+                            <button onclick="changeMonth(1)" class="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
+                                <i class="ph-bold ph-caret-right"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Дни недели -->
+                    <div class="grid grid-cols-7 gap-1 text-center text-xs font-semibold text-slate-400 mb-2">
+                        <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div class="text-rose-400">Сб</div><div class="text-rose-400">Вс</div>
+                    </div>
+
+                    <!-- Сетка дней -->
+                    <div id="calendar-grid" class="grid grid-cols-7 gap-1 sm:gap-2">
+                        <!-- Генерируется через JS -->
+                    </div>
+
+                    <!-- Легенда -->
+                    <div class="mt-6 pt-4 border-t border-slate-100 flex flex-wrap gap-4 text-xs text-slate-500">
+                        <div class="flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Выполненный ремонт
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span> Запланированное ТО / Страховка
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 rounded-full bg-slate-800"></span> Выбранный день
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Боковая панель выбранного дня и планировщик -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
+                            <div>
+                                <span class="text-xs text-slate-400 uppercase font-semibold">События на дату</span>
+                                <h3 class="text-base font-bold text-slate-800" id="selected-date-title">26 ноября 2026</h3>
+                            </div>
+                            <button onclick="openPlanModal()" class="p-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl transition" title="Запланировать событие">
+                                <i class="ph-bold ph-calendar-plus text-lg"></i>
+                            </button>
+                        </div>
+
+                        <div id="day-events-list" class="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+                            <!-- Список событий дня -->
+                        </div>
+                    </div>
+
+                    <div class="mt-6 pt-4 border-t border-slate-100">
+                        <button onclick="openPlanModal()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-xl transition shadow-sm flex items-center justify-center gap-2">
+                            <i class="ph-bold ph-plus"></i> Запланировать визит / ТО
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ВКЛАДКА 3: БОРТОВОЙ ЖУРНАЛ И ФОТООТЧЕТЫ -->
+        <section id="view-journal" class="tab-view hidden animate-fade-in space-y-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-800">История обслуживания и фотоотчеты</h2>
+                    <p class="text-xs text-slate-500">Сохраняйте чеки, артикулы запчастей и фото состояния узлов после ремонта</p>
+                </div>
+                <button onclick="openAddRecordModal()" class="w-full sm:w-auto px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-xl transition flex items-center justify-center gap-2 shadow">
+                    <i class="ph-bold ph-camera-plus text-lg"></i> Добавить запись с фото
+                </button>
+            </div>
+
+            <!-- Фильтр поиска -->
+            <div class="relative">
+                <i class="ph ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
+                <input type="text" id="journal-search" oninput="renderJournal()" placeholder="Поиск по работам, комментариям или запчастям (например: ГРМ, шаровая, масло)..." class="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm">
+            </div>
+
+            <!-- Лента записей -->
+            <div id="journal-feed" class="space-y-4">
+                <!-- Карточки записей генерируются через JS -->
+            </div>
+        </section>
+
+        <!-- ВКЛАДКА 4: ОСОБЕННОСТИ МОДЕЛИ LADA LARGUS -->
+        <section id="view-quirks" class="tab-view hidden animate-fade-in space-y-6">
+            <div class="bg-slate-900 text-white p-6 rounded-2xl shadow-md relative overflow-hidden">
+                <div class="relative z-10 max-w-2xl">
+                    <span class="px-2.5 py-1 bg-blue-600/30 border border-blue-500/40 text-blue-300 text-xs font-semibold rounded-lg uppercase tracking-wider">База знаний B0 / FL</span>
+                    <h2 class="text-xl sm:text-2xl font-bold mt-2">Болячки и конструктивные особенности Lada Largus</h2>
+                    <p class="text-sm text-slate-300 mt-1">Платформа Renault B0 (Logan MCV) отличается высокой надежностью, но имеет ряд специфических узлов, требующих профилактики.</p>
+                </div>
+                <i class="ph-duotone ph-wrench text-8xl text-slate-800 absolute -right-4 -bottom-4 pointer-events-none"></i>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="quirks-grid">
+                <!-- Карточки особенностей генерируются через JS -->
+            </div>
+        </section>
+
+    </main>
+
+    <!-- МОДАЛЬНОЕ ОКНО: ОБНОВЛЕНИЕ ПРОБЕГА -->
+    <div id="modal-mileage" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl animate-fade-in">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-slate-800">Обновить пробег</h3>
+                <button onclick="closeModal('modal-mileage')" class="text-slate-400 hover:text-slate-600"><i class="ph-bold ph-x text-xl"></i></button>
+            </div>
+            <p class="text-xs text-slate-500 mb-4">Введите актуальные показания одометра. Система автоматически пересчитает остаток ресурса до следующего ТО.</p>
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Текущий пробег (км)</label>
+                <input type="number" id="input-new-mileage" class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-lg font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="flex gap-2 justify-end">
+                <button onclick="closeModal('modal-mileage')" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition">Отмена</button>
+                <button onclick="saveNewMileage()" class="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition shadow">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛЬНОЕ ОКНО: НАСТРОЙКИ АВТОМОБИЛЯ -->
+    <div id="modal-settings" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl animate-fade-in">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-slate-800">Конфигурация Lada Largus</h3>
+                <button onclick="closeModal('modal-settings')" class="text-slate-400 hover:text-slate-600"><i class="ph-bold ph-x text-xl"></i></button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Двигатель</label>
+                    <select id="select-engine" class="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="K4M">Renault K4M (1.6 л, 16 кл., 105 л.с.) — ремень ГРМ</option>
+                        <option value="K7M">Renault K7M (1.6 л, 8 кл., 84 л.с.) — ремень ГРМ</option>
+                        <option value="21129">ВАЗ-21129 (1.6 л, 16 кл., 106 л.с.) — безвтык с 2018г.</option>
+                        <option value="11189">ВАЗ-11189 / 11182 (1.6 л, 8 кл., 87/90 л.с.)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Год выпуска / Поколение</label>
+                    <select id="select-generation" class="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="classic">Дорестайлинг (2012–2021)</option>
+                        <option value="fl">Largus FL (с 2021 г.)</option>
+                        <option value="cross">Largus Cross (увеличенный клиренс)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Госномер или заметка (необязательно)</label>
+                    <input type="text" id="input-plate" placeholder="Например: А 123 ВС 777" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+            <div class="mt-6 flex gap-2 justify-end">
+                <button onclick="closeModal('modal-settings')" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition">Отмена</button>
+                <button onclick="saveCarSettings()" class="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition shadow">Применить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛЬНОЕ ОКНО: ДОБАВИТЬ ЗАПИСЬ О РЕМОНТЕ С ФОТО -->
+    <div id="modal-add-record" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl animate-fade-in my-8">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-slate-800">Новая запись о ремонте / ТО</h3>
+                <button onclick="closeModal('modal-add-record')" class="text-slate-400 hover:text-slate-600"><i class="ph-bold ph-x text-xl"></i></button>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Связать с пунктом регламента (сбросит счетчик ТО)</label>
+                    <select id="record-task-link" onchange="autoFillRecordTitle()" class="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">-- Внеплановый ремонт / Своя работа --</option>
+                        <!-- Опции добавляются динамически -->
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Название работы *</label>
+                    <input type="text" id="record-title" placeholder="Например: Замена шаровых опор и рулевых наконечников" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Дата</label>
+                        <input type="date" id="record-date" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Пробег (км)</label>
+                        <input type="number" id="record-mileage" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Стоимость (₽)</label>
+                    <input type="number" id="record-cost" placeholder="0" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Комментарий, артикулы запчастей, нюансы</label>
+                    <textarea id="record-comment" rows="3" placeholder="Укажите бренды запчастей (например: ремень Gates, помпа Dolz), моменты затяжки или состояние старых деталей..." class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                </div>
+
+                <!-- Загрузка фото после ремонта -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Фото после ремонта / чек / запчасти</label>
+                    <label class="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 transition">
+                        <div class="flex flex-col items-center justify-center pt-2 pb-3">
+                            <i class="ph ph-camera text-2xl text-blue-500 mb-1"></i>
+                            <p class="text-xs text-slate-600 font-medium">Нажмите, чтобы выбрать фото</p>
+                            <p class="text-[10px] text-slate-400">Фото автоматически сжимаются для быстрого сохранения</p>
+                        </div>
+                        <input type="file" id="record-photos-input" accept="image/*" multiple class="hidden" onchange="handlePhotoUpload(event)">
+                    </label>
+                    <!-- Превью загруженных фото -->
+                    <div id="photo-preview-container" class="flex gap-2 mt-2 overflow-x-auto py-1"></div>
+                </div>
+            </div>
+
+            <div class="mt-6 flex gap-2 justify-end">
+                <button onclick="closeModal('modal-add-record')" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition">Отмена</button>
+                <button onclick="saveMaintenanceRecord()" class="px-5 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition shadow">Сохранить в журнал</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛЬНОЕ ОКНО: ЗАПЛАНИРОВАТЬ СОБЫТИЕ В КАЛЕНДАРЬ -->
+    <div id="modal-plan" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl animate-fade-in">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-slate-800">Запланировать событие</h3>
+                <button onclick="closeModal('modal-plan')" class="text-slate-400 hover:text-slate-600"><i class="ph-bold ph-x text-xl"></i></button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Дата</label>
+                    <input type="date" id="plan-date" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Что запланировано *</label>
+                    <input type="text" id="plan-title" placeholder="Например: Запись на развал-схождение или ОСАГО" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Заметка</label>
+                    <textarea id="plan-note" rows="2" placeholder="Адрес сервиса, телефон мастера, список покупок..." class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                </div>
+            </div>
+            <div class="mt-6 flex gap-2 justify-end">
+                <button onclick="closeModal('modal-plan')" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition">Отмена</button>
+                <button onclick="savePlannedEvent()" class="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition shadow">Добавить в календарь</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛЬНОЕ ОКНО: ПРОСМОТР ФОТО В ПОЛНЫЙ РАЗМЕР -->
+    <div id="modal-lightbox" onclick="closeModal('modal-lightbox')" class="fixed inset-0 bg-black/90 z-50 hidden flex items-center justify-center p-4 cursor-zoom-out">
+        <button class="absolute top-4 right-4 text-white/80 hover:text-white p-2">
+            <i class="ph-bold ph-x text-3xl"></i>
+        </button>
+        <img id="lightbox-img" src="" alt="Фото ремонта" class="max-w-full max-h-[90vh] rounded-xl object-contain shadow-2xl">
+    </div>
+
+    <script>
+        // ==========================================
+        // ДАННЫЕ И КОНФИГУРАЦИЯ LADA LARGUS
+        // ==========================================
+
+        const ENGINE_SPECS = {
+            'K4M': {
+                name: 'Renault K4M 1.6 16V (105 л.с.)',
+                grmInterval: 60000,
+                oilSpec: '5W-40 ACEA A3/B4 (объем 4.8 л)',
+                alert: '<strong>Двигатель Renault K4M:</strong> Критически важно менять комплект ГРМ (ремень + 2 ролика) строго каждые 60 000 км! При обрыве гнет клапана. Также обратите внимание на заглушки распредвалов и уплотнительные кольца впускного коллектора.'
+            },
+            'K7M': {
+                name: 'Renault K7M 1.6 8V (84 л.с.)',
+                grmInterval: 60000,
+                oilSpec: '5W-40 ACEA A3/B4 (объем 3.3 л)',
+                alert: '<strong>Двигатель Renault K7M:</strong> На этом 8-клапанном моторе отсутствуют гидрокомпенсаторы — требуется регулировка тепловых зазоров клапанов каждые 30 000 – 45 000 км. При обрыве ремня ГРМ клапана гнет.'
+            },
+            '21129': {
+                name: 'ВАЗ-21129 1.6 16V (106 л.с.)',
+                grmInterval: 90000,
+                oilSpec: '5W-40 API SN/CF (объем 4.4 л)',
+                alert: '<strong>Двигатель ВАЗ-21129:</strong> На моторах выпуска после августа 2018 года установлены поршни с выемками (клапана не гнет), но ресурс помпы и опорного ролика ГРМ рекомендуется контролировать каждые 45 000 км.'
+            },
+            '11189': {
+                name: 'ВАЗ-11189 / 11182 1.6 8V (87/90 л.с.)',
+                grmInterval: 75000,
+                oilSpec: '5W-40 API SN/CF (объем 3.2 л)',
+                alert: '<strong>Двигатель ВАЗ 8V:</strong> На 11189 регулировка клапанов шайбами каждые 30 000 км. На новом 11182 (с 2021 г.) стоят цельные толкатели — регулировка требуется раз в 90 000 км.'
+            }
+        };
+
+        // Базовый список регламентных работ для Largus
+        const DEFAULT_TASKS = [
+// ... existing code ... -->
+            { id: 'valve_adj', title: 'Регулировка клапанов (актуально для 8-кл. ДВС)', interval: 30000, lastMileage: 60000, category: 'Двигатель', note: 'Только для двигателей K7M и ВАЗ-11189.' }
+        ];
+
+        // База рекомендаций по диапазонам пробега для Lada Largus
+        const MILEAGE_TIPS = [
+            {
+                min: 0,
+                max: 29999,
+                stage: 'Обкатка и начальный период (до 30 000 км)',
+                tips: [
+                    { title: 'Контроль уровня жидкостей и протяжка', desc: 'Проверьте уровень антифриза (на новых авто он часто уходит из-за воздушных пробок) и затяжку клемм АКБ.', engines: 'all' },
+                    { title: 'Защита проемов от уплотнителей', desc: 'Самое время наклеить бронепленку в дверные проемы и под уплотнители багажника, пока ЛКП еще не протерлось.', engines: 'all' }
+                ]
+            },
+            {
+                min: 30000,
+                max: 54999,
+                stage: 'Рубеж 30 000 – 55 000 км',
+                tips: [
+                    { title: 'Стойки стабилизатора и наконечники', desc: 'На пробеге 35–45 тыс. км на Largus обычно начинают постукивать стойки стабилизатора («косточки») и рулевые наконечники.', engines: 'all' },
+                    { title: 'Регулировка тепловых зазоров клапанов', desc: 'На 8-клапанных моторах без гидрокомпенсаторов критически важно проверить и отрегулировать зазоры клапанов.', engines: ['K7M', '11189'] },
+                    { title: 'Осмотр колодок и направляющих суппортов', desc: 'Передние колодки к 35–45 тыс. км подходят к замене. Обязательно обновите смазку в направляющих пальцах.', engines: 'all' }
+                ]
+            },
+            {
+                min: 55000,
+                max: 74999,
+                stage: 'Большое ТО-60 (55 000 – 75 000 км)',
+                tips: [
+                    { title: 'Критичный рубеж замены ГРМ и помпы', desc: 'Для моторов Renault K4M/K7M пробег 60 000 км — предельный ресурс ремня ГРМ и роликов. Не затягивайте с заменой!', engines: ['K4M', 'K7M'] },
+                    { title: 'Ревизия опорного ролика ГРМ и помпы', desc: 'На моторах ВАЗ проверьте люфт помпы и состояние ремня ГРМ (особенно на авто до 2018 г., где гнет клапана).', engines: ['21129', '11189'] },
+                    { title: 'Масло в МКПП и левый пыльник ШРУСа', desc: 'Рекомендуется обновить масло в коробке передач и тщательно осмотреть левый внутренний пыльник-сальник.', engines: 'all' },
+                    { title: 'Проверка шаровых опор и сайлентблоков', desc: 'На 60–70 тыс. км часто появляется люфт в заводских шаровых опорах передних рычагов.', engines: 'all' }
+                ]
+            },
+            {
+                min: 75000,
+                max: 109999,
+                stage: 'Эксплуатация 75 000 – 110 000 км',
+                tips: [
+                    { title: 'Уплотнения впуска и заглушки распредвалов', desc: 'На K4M к 80–90 тыс. км дубеют резиновые кольца впускного коллектора и дросселя (появляются плавающие обороты) и текут заглушки РВ.', engines: ['K4M'] },
+                    { title: 'Амортизаторы и опорные подшипники', desc: 'Проверьте передние стойки на запотевание, а также состояние отбойников и опорных подшипников передних стоек.', engines: 'all' },
+                    { title: 'Ревизия задних барабанных тормозов', desc: 'К 80–90 тыс. км пора снять задние барабаны, очистить механизм самоподвода от пыли и проверить цилиндры на течь.', engines: 'all' },
+                    { title: 'Обслуживание трапеции стеклоочистителей', desc: 'Снимите жабо, прочистите дренажи и смажьте втулки трапеции, чтобы избежать заклинивания дворников.', engines: 'all' }
+                ]
+            },
+            {
+                min: 110000,
+                max: 149999,
+                stage: 'Второе большое ТО (110 000 – 150 000 км)',
+                tips: [
+                    { title: 'Повторная замена ГРМ + сальники валов', desc: 'При второй замене комплекта ГРМ (120 000 км) обязательно проверьте и при необходимости замените сальники распредвалов и коленвала.', engines: 'all' },
+                    { title: 'Ресурс сцепления и выжимного подшипника', desc: 'В городском режиме комплект сцепления (диск, корзина, выжимной) на Largus обычно ходит 110–140 тыс. км.', engines: 'all' },
+                    { title: 'Генератор: щетки и обгонная муфта', desc: 'К 120 тыс. км изношены щетки регулятора напряжения и токосъемные кольца генератора — стоит провести профилактику.', engines: 'all' },
+                    { title: 'Промывка радиаторов со снятием', desc: 'Между радиаторами кондиционера и охлаждения скапливается «шуба» из пуха и грязи — промойте их для защиты ДВС от перегрева.', engines: 'all' }
+                ]
+            },
+            {
+                min: 150000,
+                max: 9999999,
+                stage: 'Большой пробег (свыше 150 000 км)',
+                tips: [
+                    { title: 'Топливный модуль и сетка бензонасоса', desc: 'На пробегах 150+ тыс. км падает давление в рампе из-за забитой сетки грубой очистки в баке (лючок под сиденьем отсутствует — требуется снятие бака).', engines: 'all' },
+                    { title: 'Ступичные подшипники и ШРУСы', desc: 'Проверьте гул передних/задних ступичных подшипников (на версиях с ABS важно ставить подшипник с магнитной полосой правильной стороной).', engines: 'all' },
+                    { title: 'Состояние катализатора и гофры глушителя', desc: 'Осмотрите гофру приемной трубы на прогар и проверьте противодавление катализатора эндоскопом.', engines: 'all' },
+                    { title: 'Замена антифриза и патрубков СОД', desc: 'Резиновые патрубки системы охлаждения теряют эластичность — осмотрите хомуты и термостат.', engines: 'all' }
+                ]
+            }
+        ];
+
+        // Особенности и болячки Lada Largus
+        const LARGUS_QUIRKS = [
+            {
+                title: 'Левый внутренний пыльник ШРУСа (КПП Renault)',
+                tag: 'Критично',
+                tagColor: 'bg-rose-100 text-rose-700',
+                desc: 'На коробках передач JH3 и JR5 левый внутренний пыльник совмещен с сальником. При его разрыве масло из МКПП вытекает мгновенно, что приводит к сухому голоданию и клину пятой передачи.',
+                advice: 'Осматривать пыльник при каждом подъеме авто на подъемнике. Возить запасной в багажнике при дальних поездках.'
+            },
+            {
+                title: 'Натирание ЛКП уплотнителями дверей',
+                tag: 'Кузов',
+                tagColor: 'bg-amber-100 text-amber-700',
+                desc: 'Жесткие штатные уплотнители передних и задних дверей (особенно распашных дверей багажника) со временем протирают краску в проемах до грунта и металла.',
+                advice: 'Наклеить прозрачную полиуретановую бронепленку в местах прилегания резинок и регулярно очищать уплотнители от песка.'
+            },
+            {
+                title: 'Подрулевой переключатель (сигнал и свет)',
+                tag: 'Электрика',
+                tagColor: 'bg-blue-100 text-blue-700',
+                desc: 'На дорестайлинговых Largus кнопка звукового сигнала расположена в торце левого подрулевого переключателя. От частого поворота кольца света переламываются тонкие провода внутри.',
+                advice: 'Лечится разборкой и пайкой более мягких проводов (МГТФ) или заменой переключателя в сборе.'
+            },
+            {
+                title: 'Датчик ГУР и трубка высокого давления',
+                tag: 'Рулевое',
+                tagColor: 'bg-purple-100 text-purple-700',
+                desc: 'На двигателях K4M/K7M часто начинает сопливить датчик давления жидкости ГУР, расположенный на трубке у генератора. Масло может попасть прямо на щетки генератора.',
+                advice: 'Проверять сухость датчика при каждом открытии капота. При течи — менять датчик.'
+            },
+            {
+                title: 'Закисание трапеции дворников и поводков',
+                tag: 'Кузов',
+                tagColor: 'bg-emerald-100 text-emerald-700',
+                desc: 'Пластиковое жабо под лобовым стеклом неплотно прилегает, из-за чего в трапецию попадает вода и листва, вызывая закисание втулок.',
+                advice: 'Раз в 2 года снимать жабо, чистить дренажные отверстия и смазывать шарниры трапеции водостойкой смазкой.'
+            },
+            {
+                title: 'Задние распашные двери (ограничители и петли)',
+                tag: 'Кузов',
+                tagColor: 'bg-amber-100 text-amber-700',
+                desc: 'Тяжелые распашные двери багажника (особенно с запаской или в версии фургон) со временем провисают, а фиксаторы открытого положения перестают держать на ветру.',
+                advice: 'Регулярно смазывать петли белой литиевой смазкой и контролировать состояние упорных втулок.'
+            }
+        ];
+
+        // ==========================================
+        // СОСТОЯНИЕ ПРИЛОЖЕНИЯ (LocalStorage)
+        // ==========================================
+        let appState = {
+            car: {
+                engine: 'K4M',
+                generation: 'classic',
+                plate: 'А 774 ВЕ 199',
+                mileage: 84500
+            },
+            tasks: [],
+            records: [],
+            plannedEvents: []
+        };
+
+        let currentCalendarDate = new Date();
+        let selectedDateStr = formatDateISO(new Date());
+        let tempUploadedPhotos = []; // Временное хранилище base64 фото при создании записи
+
+        // Инициализация при загрузке страницы
+        window.onload = function() {
+            loadState();
+            updateHeaderUI();
+            renderDashboard();
+            renderCalendar();
+            renderJournal();
+            renderQuirks();
+        };
+
+        function loadState() {
+            const saved = localStorage.getItem('largus_service_state_v1');
+            if (saved) {
+                try {
+                    appState = JSON.parse(saved);
+                } catch (e) {
+                    console.error('Ошибка чтения данных', e);
+                    initDefaultState();
+                }
+            } else {
+                initDefaultState();
+            }
+        }
+
+        function initDefaultState() {
+            appState.tasks = JSON.parse(JSON.stringify(DEFAULT_TASKS));
+            
+            // Добавим пару демонстрационных записей в журнал
+            const todayStr = formatDateISO(new Date());
+            appState.records = [
+                {
+                    id: 1,
+                    title: 'Замена масла в ДВС и масляного фильтра',
+                    date: '2026-09-15',
+                    mileage: 80000,
+                    cost: 4800,
+                    comment: 'Залил синтетику 5W-40 A3/B4 (4.8 л). Фильтр оригинальный Renault 8200768913. Медное кольцо сливной пробки заменено.',
+                    photos: []
+                },
+                {
+                    id: 2,
+                    title: 'Замена комплекта ГРМ, помпы и приводного ремня',
+                    date: '2025-11-10',
+                    mileage: 58000,
+                    cost: 18500,
+                    comment: 'Установлен комплект Gates K015671XS, помпа Dolz R218. Проверено состояние заглушек распредвалов — сухие.',
+                    photos: []
+                }
+            ];
+
+            appState.plannedEvents = [
+                {
+                    id: 101,
+                    date: todayStr,
+                    title: 'Проверка уровня масла и давления в шинах',
+                    note: 'Подготовка к зимнему сезону, залить незамерзайку.'
+                }
+            ];
+            saveState();
+        }
+
+        function saveState() {
+            try {
+                localStorage.setItem('largus_service_state_v1', JSON.stringify(appState));
+            } catch (e) {
+                showToast('Память браузера заполнена! Попробуйте удалить старые фото.', 'error');
+            }
+        }
+
+        // ==========================================
+        // НАВИГАЦИЯ И UI
+        // ==========================================
+        function switchTab(tabId) {
+            // Скрыть все вкладки
+            document.querySelectorAll('.tab-view').forEach(el => el.classList.add('hidden'));
+            // Сбросить стили кнопок
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('bg-blue-600', 'text-white', 'shadow');
+                btn.classList.add('text-slate-300', 'hover:bg-slate-700/50');
+            });
+
+            // Показать нужную вкладку
+            document.getElementById(`view-${tabId}`).classList.remove('hidden');
+            const activeBtn = document.getElementById(`tab-${tabId}`);
+            activeBtn.classList.remove('text-slate-300', 'hover:bg-slate-700/50');
+            activeBtn.classList.add('bg-blue-600', 'text-white', 'shadow');
+
+            if (tabId === 'calendar') renderCalendar();
+            if (tabId === 'journal') renderJournal();
+        }
+
+        function updateHeaderUI() {
+            const spec = ENGINE_SPECS[appState.car.engine] || ENGINE_SPECS['K4M'];
+            const plateText = appState.car.plate ? ` • ${appState.car.plate}` : '';
+            document.getElementById('header-car-subtitle').textContent = spec.name + plateText;
+            document.getElementById('display-mileage').textContent = appState.car.mileage.toLocaleString('ru-RU');
+            document.getElementById('engine-alert-text').innerHTML = spec.alert;
+        }
+
+        // ==========================================
+        // ВКЛАДКА 1: РЕГЛАМЕНТ ТО
+        // ==========================================
+        function renderMileageRecommendations() {
+            const currentMileage = appState.car.mileage;
+            const currentEngine = appState.car.engine;
+
+            document.getElementById('rec-mileage-badge').textContent = `${currentMileage.toLocaleString('ru-RU')} км`;
+
+            const stageObj = MILEAGE_TIPS.find(s => currentMileage >= s.min && currentMileage <= s.max) || MILEAGE_TIPS[0];
+            document.getElementById('rec-milestone-subtitle').textContent = stageObj.stage;
+
+            const listEl = document.getElementById('mileage-recommendations-list');
+            listEl.innerHTML = '';
+
+            // Фильтруем советы под выбранный двигатель
+            const relevantTips = stageObj.tips.filter(tip => {
+                if (tip.engines === 'all') return true;
+                return Array.isArray(tip.engines) && tip.engines.includes(currentEngine);
+            });
+
+            relevantTips.forEach(tip => {
+                const card = document.createElement('div');
+                card.className = 'bg-white/90 backdrop-blur-sm border border-indigo-100 rounded-xl p-3.5 flex flex-col justify-between gap-2 shadow-xs';
+                card.innerHTML = `
+                    <div>
+                        <div class="flex items-start justify-between gap-2">
+                            <h4 class="font-bold text-slate-800 text-sm leading-snug">${tip.title}</h4>
+                            <i class="ph-fill ph-check-square-offset text-indigo-500 text-base shrink-0 mt-0.5"></i>
+                        </div>
+                        <p class="text-xs text-slate-600 mt-1 leading-relaxed">${tip.desc}</p>
+                    </div>
+                    <div class="pt-1 flex justify-end">
+                        <button onclick="openAddRecordWithTitle('${tip.title.replace(/'/g, "\\'")}')" class="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition">
+                            <i class="ph-bold ph-plus-circle"></i> Записать в журнал
+                        </button>
+                    </div>
+                `;
+                listEl.appendChild(card);
+            });
+        }
+
+        function openAddRecordWithTitle(title) {
+            openAddRecordModal('');
+            document.getElementById('record-title').value = title;
+        }
+
+        function renderDashboard() {
+            renderMileageRecommendations();
+
+            const listEl = document.getElementById('maintenance-list');
+            listEl.innerHTML = '';
+
+            // Показываем кнопку восстановления, если часть стандартных задач была удалена
+            const restoreBtn = document.getElementById('btn-restore-tasks');
+            if (appState.tasks.length < DEFAULT_TASKS.length) {
+                restoreBtn.classList.remove('hidden');
+            } else {
+                restoreBtn.classList.add('hidden');
+            }
+
+            let okCount = 0;
+            let soonCount = 0;
+            let overdueCount = 0;
+
+            const currentMileage = appState.car.mileage;
+            const is8V = (appState.car.engine === 'K7M' || appState.car.engine === '11189');
+
+            const visibleTasks = appState.tasks.filter(task => !(task.id === 'valve_adj' && !is8V));
+
+            if (visibleTasks.length === 0) {
+                listEl.innerHTML = `
+                    <div class="p-10 text-center text-slate-400">
+                        <i class="ph ph-clipboard-text text-4xl mb-2"></i>
+                        <p class="text-sm text-slate-500">В карте ТО пока нет ни одного пункта.</p>
+                        <button onclick="restoreDefaultTasks()" class="mt-3 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-semibold rounded-xl transition">
+                            Восстановить стандартный регламент
+                        </button>
+                    </div>
+                `;
+            }
+
+            visibleTasks.forEach(task => {
+                // Адаптация интервала ГРМ под двигатель
+                let interval = task.interval;
+                if (task.id === 'grm') {
+                    interval = ENGINE_SPECS[appState.car.engine].grmInterval;
+                }
+
+                const nextMileage = task.lastMileage + interval;
+                const remaining = nextMileage - currentMileage;
+                const progressPercent = Math.min(100, Math.max(0, ((currentMileage - task.lastMileage) / interval) * 100));
+
+                let statusBadge = '';
+                let barColor = 'bg-emerald-500';
+                let remainingText = '';
+
+                if (remaining < 0) {
+                    overdueCount++;
+                    barColor = 'bg-rose-500';
+                    statusBadge = `<span class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-rose-100 text-rose-700">Просрочено</span>`;
+                    remainingText = `<span class="text-rose-600 font-bold">Перепробег ${Math.abs(remaining).toLocaleString('ru-RU')} км</span>`;
+                } else if (remaining <= 2000) {
+                    soonCount++;
+                    barColor = 'bg-amber-500';
+                    statusBadge = `<span class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-700">Скоро ТО</span>`;
+                    remainingText = `<span class="text-amber-600 font-bold">Осталось ${remaining.toLocaleString('ru-RU')} км</span>`;
+                } else {
+                    okCount++;
+                    statusBadge = `<span class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-700">В норме</span>`;
+                    remainingText = `<span class="text-slate-600">Осталось <strong>${remaining.toLocaleString('ru-RU')} км</strong></span>`;
+                }
+
+                const card = document.createElement('div');
+                card.className = 'p-5 hover:bg-slate-50/80 transition flex flex-col sm:flex-row justify-between gap-4';
+                card.innerHTML = `
+                    <div class="flex-1 space-y-2">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-200/70 text-slate-600">${task.category}</span>
+                            ${statusBadge}
+                        </div>
+                        <h3 class="font-bold text-slate-800 text-base">${task.title}</h3>
+                        <p class="text-xs text-slate-500">${task.note}</p>
+                        
+                        <!-- Прогресс-бар ресурса -->
+                        <div class="pt-1">
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-400">Замена была: ${task.lastMileage.toLocaleString('ru-RU')} км</span>
+                                ${remainingText}
+                            </div>
+                            <div class="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                                <div class="h-full ${barColor} transition-all duration-500" style="width: ${progressPercent}%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex sm:flex-col justify-between sm:justify-center items-end gap-2 shrink-0 border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-100">
+                        <div class="text-left sm:text-right">
+                            <span class="text-[11px] text-slate-400 block">След. замена</span>
+                            <span class="text-sm font-bold text-slate-700">${nextMileage.toLocaleString('ru-RU')} км</span>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <button onclick="openAddRecordModal('${task.id}')" class="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold rounded-lg transition flex items-center gap-1.5">
+                                <i class="ph-bold ph-check"></i> Выполнить ТО
+                            </button>
+                            <button onclick="deleteTask('${task.id}')" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition" title="Удалить вид работ из карты ТО">
+                                <i class="ph ph-trash text-lg"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                listEl.appendChild(card);
+            });
+
+            document.getElementById('stat-ok').textContent = okCount;
+            document.getElementById('stat-soon').textContent = soonCount;
+            document.getElementById('stat-overdue').textContent = overdueCount;
+        }
+
+        function deleteTask(taskId) {
+            appState.tasks = appState.tasks.filter(t => t.id !== taskId);
+            saveState();
+            renderDashboard();
+            showToast('Вид работ удален из карты ТО', 'info');
+        }
+
+        function restoreDefaultTasks() {
+            const existingIds = new Set(appState.tasks.map(t => t.id));
+            let restoredCount = 0;
+
+            DEFAULT_TASKS.forEach(defTask => {
+                if (!existingIds.has(defTask.id)) {
+                    appState.tasks.push(JSON.parse(JSON.stringify(defTask)));
+                    restoredCount++;
+                }
+            });
+
+            if (restoredCount > 0) {
+                saveState();
+                renderDashboard();
+                showToast(`Восстановлено пунктов регламента: ${restoredCount}`, 'success');
+            }
+        }
+
+        // ==========================================
+        // ВКЛАДКА 2: КАЛЕНДАРЬ ОБСЛУЖИВАНИЯ
+        // ==========================================
+        function renderCalendar() {
+            const year = currentCalendarDate.getFullYear();
+            const month = currentCalendarDate.getMonth();
+
+            const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+            document.getElementById('calendar-month-year').textContent = `${monthNames[month]} ${year}`;
+
+            const firstDayOfMonth = new Date(year, month, 1).getDay(); // 0 (Вс) - 6 (Сб)
+            const startOffset = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1; // Сдвиг для Пн=0
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            const grid = document.getElementById('calendar-grid');
+            grid.innerHTML = '';
+
+            // Пустые ячейки до начала месяца
+            for (let i = 0; i < startOffset; i++) {
+                grid.innerHTML += `<div class="h-12 sm:h-16 rounded-xl bg-slate-50/50"></div>`;
+            }
+
+            const todayStr = formatDateISO(new Date());
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateObj = new Date(year, month, day);
+                const dateStr = formatDateISO(dateObj);
+
+                // Проверяем события на эту дату
+                const doneRecords = appState.records.filter(r => r.date === dateStr);
+                const planned = appState.plannedEvents.filter(p => p.date === dateStr);
+
+                const isSelected = dateStr === selectedDateStr;
+                const isToday = dateStr === todayStr;
+
+                let cellClasses = 'h-12 sm:h-16 rounded-xl border p-1.5 flex flex-col justify-between cursor-pointer transition select-none ';
+                if (isSelected) {
+                    cellClasses += 'bg-slate-900 text-white border-slate-900 shadow-md';
+                } else if (isToday) {
+                    cellClasses += 'bg-blue-50/70 border-blue-300 text-blue-900 font-bold';
+                } else {
+                    cellClasses += 'bg-white border-slate-200/70 hover:border-blue-400 text-slate-700';
+                }
+
+                // Индикаторы точек
+                let dotsHtml = '<div class="flex gap-1 justify-end">';
+                if (doneRecords.length > 0) {
+                    dotsHtml += `<span class="w-2 h-2 rounded-full bg-emerald-500" title="Выполнено работ: ${doneRecords.length}"></span>`;
+                }
+                if (planned.length > 0) {
+                    dotsHtml += `<span class="w-2 h-2 rounded-full bg-blue-500" title="Запланировано: ${planned.length}"></span>`;
+                }
+                dotsHtml += '</div>';
+
+                const cell = document.createElement('div');
+                cell.className = cellClasses;
+                cell.onclick = () => selectCalendarDate(dateStr);
+                cell.innerHTML = `
+                    <span class="text-xs sm:text-sm font-medium">${day}</span>
+                    ${dotsHtml}
+                `;
+                grid.appendChild(cell);
+            }
+
+            renderSelectedDayEvents();
+        }
+
+        function selectCalendarDate(dateStr) {
+            selectedDateStr = dateStr;
+            renderCalendar();
+        }
+
+        function changeMonth(delta) {
+            currentCalendarDate.setMonth(currentCalendarDate.getMonth() + delta);
+            renderCalendar();
+        }
+
+        function resetCalendarToToday() {
+            currentCalendarDate = new Date();
+            selectedDateStr = formatDateISO(new Date());
+            renderCalendar();
+        }
+
+        function renderSelectedDayEvents() {
+            const titleEl = document.getElementById('selected-date-title');
+            const listEl = document.getElementById('day-events-list');
+
+            const parts = selectedDateStr.split('-');
+            const dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+            titleEl.textContent = dateObj.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+
+            const doneRecords = appState.records.filter(r => r.date === selectedDateStr);
+            const planned = appState.plannedEvents.filter(p => p.date === selectedDateStr);
+
+            listEl.innerHTML = '';
+
+            if (doneRecords.length === 0 && planned.length === 0) {
+                listEl.innerHTML = `
+                    <div class="text-center py-8 text-slate-400">
+                        <i class="ph ph-calendar-x text-3xl mb-2"></i>
+                        <p class="text-xs">На эту дату нет записей или планов</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Отрисовка выполненных работ
+            doneRecords.forEach(rec => {
+                const item = document.createElement('div');
+                item.className = 'p-3 rounded-xl bg-emerald-50 border border-emerald-200 space-y-1';
+                item.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] font-bold uppercase text-emerald-700 bg-emerald-200/60 px-2 py-0.5 rounded">Выполнено (${rec.mileage.toLocaleString('ru-RU')} км)</span>
+                        ${rec.photos && rec.photos.length > 0 ? `<i class="ph-fill ph-image text-emerald-600" title="Есть фото"></i>` : ''}
+                    </div>
+                    <p class="text-sm font-bold text-slate-800">${rec.title}</p>
+                    ${rec.comment ? `<p class="text-xs text-slate-600 line-clamp-2">${rec.comment}</p>` : ''}
+                `;
+                listEl.appendChild(item);
+            });
+
+            // Отрисовка запланированных событий
+            planned.forEach(ev => {
+                const item = document.createElement('div');
+                item.className = 'p-3 rounded-xl bg-blue-50 border border-blue-200 space-y-1 relative group';
+                item.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] font-bold uppercase text-blue-700 bg-blue-200/60 px-2 py-0.5 rounded">Запланировано</span>
+                        <button onclick="deletePlannedEvent(${ev.id})" class="text-slate-400 hover:text-rose-600 transition" title="Удалить">
+                            <i class="ph-bold ph-trash"></i>
+                        </button>
+                    </div>
+                    <p class="text-sm font-bold text-slate-800">${ev.title}</p>
+                    ${ev.note ? `<p class="text-xs text-slate-600">${ev.note}</p>` : ''}
+                `;
+                listEl.appendChild(item);
+            });
+        }
+
+        // ==========================================
+        // ВКЛАДКА 3: БОРТОВОЙ ЖУРНАЛ И ФОТО
+        // ==========================================
+        function renderJournal() {
+            const feed = document.getElementById('journal-feed');
+            const query = document.getElementById('journal-search').value.toLowerCase().trim();
+            feed.innerHTML = '';
+
+            // Сортировка от свежих к старым
+            const sorted = [...appState.records].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            const filtered = sorted.filter(rec => {
+                return rec.title.toLowerCase().includes(query) || 
+                       (rec.comment && rec.comment.toLowerCase().includes(query));
+            });
+
+            if (filtered.length === 0) {
+                feed.innerHTML = `
+                    <div class="bg-white rounded-2xl p-10 text-center border border-slate-200/80">
+                        <i class="ph ph-notebook text-4xl text-slate-300 mb-2"></i>
+                        <p class="text-sm text-slate-500">Записей пока нет. Добавьте первый отчет о ремонте!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            filtered.forEach(rec => {
+                const dateFormatted = new Date(rec.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+                
+                // Галерея фото
+                let photosHtml = '';
+                if (rec.photos && rec.photos.length > 0) {
+                    photosHtml = `<div class="mt-3 pt-3 border-t border-slate-100">
+                        <span class="text-[11px] font-semibold text-slate-400 uppercase block mb-2">Фотографии после ремонта (${rec.photos.length})</span>
+                        <div class="flex gap-3 overflow-x-auto pb-1">
+                            ${rec.photos.map(src => `
+                                <img src="${src}" onclick="openLightbox('${src}')" alt="Фото ремонта" class="h-24 w-24 sm:h-28 sm:w-28 object-cover rounded-xl border border-slate-200 cursor-zoom-in hover:opacity-90 transition shrink-0 shadow-sm">
+                            `).join('')}
+                        </div>
+                    </div>`;
+                }
+
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 transition hover:shadow-md';
+                card.innerHTML = `
+                    <div class="flex justify-between items-start gap-4">
+                        <div>
+                            <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500 mb-1">
+                                <span class="flex items-center gap-1 font-medium text-slate-700"><i class="ph ph-calendar"></i> ${dateFormatted}</span>
+                                <span>•</span>
+                                <span class="flex items-center gap-1 font-semibold text-blue-600"><i class="ph ph-gauge"></i> ${rec.mileage.toLocaleString('ru-RU')} км</span>
+                                ${rec.cost > 0 ? `<span>•</span><span class="font-semibold text-emerald-600">${rec.cost.toLocaleString('ru-RU')} ₽</span>` : ''}
+                            </div>
+                            <h3 class="text-base sm:text-lg font-bold text-slate-800">${rec.title}</h3>
+                        </div>
+                        <button onclick="deleteRecord(${rec.id})" class="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition" title="Удалить запись">
+                            <i class="ph ph-trash text-lg"></i>
+                        </button>
+                    </div>
+
+                    ${rec.comment ? `
+                        <div class="mt-3 bg-slate-50 p-3.5 rounded-xl text-sm text-slate-700 border border-slate-100 whitespace-pre-line">
+                            ${rec.comment}
+                        </div>
+                    ` : ''}
+
+                    ${photosHtml}
+                `;
+                feed.appendChild(card);
+            });
+        }
+
+        // ==========================================
+        // ВКЛАДКА 4: ОСОБЕННОСТИ МОДЕЛИ
+        // ==========================================
+        function renderQuirks() {
+            const grid = document.getElementById('quirks-grid');
+            grid.innerHTML = '';
+
+            LARGUS_QUIRKS.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col justify-between space-y-4';
+                card.innerHTML = `
+                    <div>
+                        <div class="flex justify-between items-start gap-2 mb-2">
+                            <h3 class="font-bold text-slate-800 text-base">${item.title}</h3>
+                            <span class="px-2.5 py-0.5 text-xs font-semibold rounded-full shrink-0 ${item.tagColor}">${item.tag}</span>
+                        </div>
+                        <p class="text-sm text-slate-600 leading-relaxed">${item.desc}</p>
+                    </div>
+                    <div class="bg-blue-50/80 border border-blue-100 p-3 rounded-xl text-xs text-blue-900">
+                        <strong class="block text-blue-700 mb-0.5"><i class="ph-fill ph-lightbulb"></i> Рекомендация:</strong>
+                        ${item.advice}
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        // ==========================================
+        // МОДАЛЬНЫЕ ОКНА И ОБРАБОТКА ФОТО
+        // ==========================================
+        function openModal(id) {
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        function openMileageModal() {
+            document.getElementById('input-new-mileage').value = appState.car.mileage;
+            openModal('modal-mileage');
+        }
+
+        function saveNewMileage() {
+            const val = parseInt(document.getElementById('input-new-mileage').value, 10);
+            if (isNaN(val) || val < 0) {
+                showToast('Введите корректный пробег', 'error');
+                return;
+            }
+            appState.car.mileage = val;
+            saveState();
+            updateHeaderUI();
+            renderDashboard();
+            closeModal('modal-mileage');
+            showToast('Пробег успешно обновлен!', 'success');
+        }
+
+        function openCarSettingsModal() {
+            document.getElementById('select-engine').value = appState.car.engine;
+            document.getElementById('select-generation').value = appState.car.generation;
+            document.getElementById('input-plate').value = appState.car.plate || '';
+            openModal('modal-settings');
+        }
+
+        function saveCarSettings() {
+            appState.car.engine = document.getElementById('select-engine').value;
+            appState.car.generation = document.getElementById('select-generation').value;
+            appState.car.plate = document.getElementById('input-plate').value.trim();
+            saveState();
+            updateHeaderUI();
+            renderDashboard();
+            closeModal('modal-settings');
+            showToast('Настройки автомобиля сохранены', 'success');
+        }
+
+        function openAddRecordModal(preselectedTaskId = '') {
+            // Заполняем селект регламентных работ
+            const select = document.getElementById('record-task-link');
+            select.innerHTML = '<option value="">-- Внеплановый ремонт / Своя работа --</option>';
+            appState.tasks.forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t.id;
+                opt.textContent = t.title;
+                select.appendChild(opt);
+            });
+
+            select.value = preselectedTaskId;
+            document.getElementById('record-title').value = '';
+            document.getElementById('record-date').value = formatDateISO(new Date());
+            document.getElementById('record-mileage').value = appState.car.mileage;
+            document.getElementById('record-cost').value = '';
+            document.getElementById('record-comment').value = '';
+            
+            tempUploadedPhotos = [];
+            document.getElementById('photo-preview-container').innerHTML = '';
+
+            if (preselectedTaskId) {
+                autoFillRecordTitle();
+            }
+
+            openModal('modal-add-record');
+        }
+
+        function autoFillRecordTitle() {
+            const taskId = document.getElementById('record-task-link').value;
+            if (!taskId) return;
+            const task = appState.tasks.find(t => t.id === taskId);
+            if (task) {
+                document.getElementById('record-title').value = task.title;
+            }
+        }
+
+        // Сжатие и загрузка фотографий через Canvas
+        function handlePhotoUpload(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+
+            Array.from(files).forEach(file => {
+                if (!file.type.startsWith('image/')) return;
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        // Сжимаем до max 800px по большей стороне для экономии места в localStorage
+                        const canvas = document.createElement('canvas');
+                        const MAX_SIZE = 800;
+                        let width = img.width;
+                        let height = img.height;
+
+                        if (width > height) {
+                            if (width > MAX_SIZE) {
+                                height *= MAX_SIZE / width;
+                                width = MAX_SIZE;
+                            }
+                        } else {
+                            if (height > MAX_SIZE) {
+                                width *= MAX_SIZE / height;
+                                height = MAX_SIZE;
+                            }
+                        }
+
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.75);
+                        tempUploadedPhotos.push(compressedDataUrl);
+                        renderPhotoPreviews();
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+            // Сброс инпута чтобы можно было выбрать тот же файл повторно
+            event.target.value = '';
+        }
+
+        function renderPhotoPreviews() {
+            const container = document.getElementById('photo-preview-container');
+            container.innerHTML = '';
+            tempUploadedPhotos.forEach((src, idx) => {
+                const wrap = document.createElement('div');
+                wrap.className = 'relative shrink-0';
+                wrap.innerHTML = `
+                    <img src="${src}" class="h-16 w-16 object-cover rounded-lg border border-slate-300">
+                    <button type="button" onclick="removeTempPhoto(${idx})" class="absolute -top-1.5 -right-1.5 bg-rose-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow">
+                        <i class="ph-bold ph-x"></i>
+                    </button>
+                `;
+                container.appendChild(wrap);
+            });
+        }
+
+        function removeTempPhoto(index) {
+            tempUploadedPhotos.splice(index, 1);
+            renderPhotoPreviews();
+        }
+
+        function saveMaintenanceRecord() {
+            const title = document.getElementById('record-title').value.trim();
+            const date = document.getElementById('record-date').value;
+            const mileage = parseInt(document.getElementById('record-mileage').value, 10) || appState.car.mileage;
+            const cost = parseInt(document.getElementById('record-cost').value, 10) || 0;
+            const comment = document.getElementById('record-comment').value.trim();
+            const linkedTaskId = document.getElementById('record-task-link').value;
+
+            if (!title) {
+                showToast('Укажите название выполненной работы', 'error');
+                return;
+            }
+
+            // Если указан пробег больше текущего, обновляем общий пробег авто
+            if (mileage > appState.car.mileage) {
+                appState.car.mileage = mileage;
+                updateHeaderUI();
+            }
+
+            // Если работа привязана к регламенту ТО — обновляем пробег последней замены
+            if (linkedTaskId) {
+                const task = appState.tasks.find(t => t.id === linkedTaskId);
+                if (task) {
+                    task.lastMileage = mileage;
+                }
+            }
+
+            const newRecord = {
+                id: Date.now(),
+                title,
+                date: date || formatDateISO(new Date()),
+                mileage,
+                cost,
+                comment,
+                photos: [...tempUploadedPhotos]
+            };
+
+            appState.records.unshift(newRecord);
+            saveState();
+
+            renderDashboard();
+            renderCalendar();
+            renderJournal();
+            closeModal('modal-add-record');
+            showToast('Запись и фото сохранены в журнал!', 'success');
+        }
+
+        function deleteRecord(id) {
+            appState.records = appState.records.filter(r => r.id !== id);
+            saveState();
+            renderJournal();
+            renderCalendar();
+            showToast('Запись удалена', 'info');
+        }
+
+        // Планировщик в календаре
+        function openPlanModal() {
+            document.getElementById('plan-date').value = selectedDateStr;
+            document.getElementById('plan-title').value = '';
+            document.getElementById('plan-note').value = '';
+            openModal('modal-plan');
+        }
+
+        function savePlannedEvent() {
+            const date = document.getElementById('plan-date').value;
+            const title = document.getElementById('plan-title').value.trim();
+            const note = document.getElementById('plan-note').value.trim();
+
+            if (!title || !date) {
+                showToast('Заполните дату и название события', 'error');
+                return;
+            }
+
+            appState.plannedEvents.push({
+                id: Date.now(),
+                date,
+                title,
+                note
+            });
+
+            selectedDateStr = date;
+            saveState();
+            renderCalendar();
+            closeModal('modal-plan');
+            showToast('Событие добавлено в календарь', 'success');
+        }
+
+        function deletePlannedEvent(id) {
+            appState.plannedEvents = appState.plannedEvents.filter(e => e.id !== id);
+            saveState();
+            renderCalendar();
+            showToast('План удален', 'info');
+        }
+
+        // Просмотр фото в полный размер
+        function openLightbox(src) {
+            document.getElementById('lightbox-img').src = src;
+            openModal('modal-lightbox');
+        }
+
+        // Вспомогательные функции
+        function formatDateISO(dateObj) {
+            const y = dateObj.getFullYear();
+            const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const d = String(dateObj.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            let bg = 'bg-slate-800 text-white';
+            let icon = 'ph-info';
+            if (type === 'success') { bg = 'bg-emerald-600 text-white'; icon = 'ph-check-circle'; }
+            if (type === 'error') { bg = 'bg-rose-600 text-white'; icon = 'ph-warning-circle'; }
+
+            toast.className = `${bg} px-4 py-3 rounded-xl shadow-lg flex items-center gap-2.5 text-sm font-medium animate-fade-in pointer-events-auto`;
+            toast.innerHTML = `<i class="ph-bold ${icon} text-lg"></i> <span>${message}</span>`;
+            
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.3s';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
